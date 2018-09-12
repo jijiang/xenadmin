@@ -41,6 +41,7 @@ using System.Linq;
 using XenAdmin.Core;
 using System.Text;
 using XenAdmin.Diagnostics.Problems;
+using XenAdmin.Wizards.RollingUpgradeWizard.PlanActions;
 
 
 namespace XenAdmin.Wizards.PatchingWizard
@@ -139,6 +140,19 @@ namespace XenAdmin.Wizards.PatchingWizard
 
         protected virtual void DoAfterInitialPlanActions(UpdateProgressBackgroundWorker bgw, Host host, List<Host> hosts) { }
         #endregion
+
+        private void RearrangeDelayedActionsAfterUpdating(Host host, ref List<PlanAction> delayedActions)
+        {
+            delayedActions = delayedActions.Distinct().ToList();
+
+            if (delayedActions.Any(a => a is RestartHostPlanAction))
+            {
+                if (!Helpers.ElyOrGreater(host) || host.updates_requiring_reboot.Count > 0)
+                    delayedActions.RemoveAll(a => a is RestartAgentPlanAction);
+                else
+                    delayedActions.RemoveAll(a => a is RestartHostPlanAction);
+            }
+        }
 
         #region background workers
         private bool StartUpgradeWorkers()
@@ -332,6 +346,11 @@ namespace XenAdmin.Wizards.PatchingWizard
                         bgw.RunPlanAction(action, ref doWorkEventArgs);
                     }
 
+                    var suppPackPlanAction = (RpuUploadAndApplySuppPackPlanAction) planActions.FirstOrDefault(pa => pa is RpuUploadAndApplySuppPackPlanAction);
+                    if (suppPackPlanAction != null)
+                        hp.DelayedPlanActions.AddRange(suppPackPlanAction.delayedPlanActions);
+                    RearrangeDelayedActionsAfterUpdating(host, ref hp.DelayedPlanActions);
+
                     // Step 3: DelayedActions
                     bgw.ProgressIncrement = bgw.DelayedActionsIncrement(hp);
                     // running delayed actions, but skipping the ones that should be skipped
@@ -502,10 +521,7 @@ namespace XenAdmin.Wizards.PatchingWizard
                 planActionsPerHost.Add(new PatchPrecheckOnHostPlanAction(host.Connection, patch, host, patchMappings));
                 planActionsPerHost.Add(new ApplyXenServerPatchPlanAction(host, patch, patchMappings));
 
-                var action = patch.after_apply_guidance == after_apply_guidance.restartXAPI && delayedActionsPerHost.Any(a => a is RestartHostPlanAction)
-                       ? new RestartHostPlanAction(host, host.GetRunningVMs(), true, true)
-                       : GetAfterApplyGuidanceAction(host, patch.after_apply_guidance);
-
+                var action = GetAfterApplyGuidanceAction(host, patch.after_apply_guidance);
                 if (action != null)
                 {
                     if (patch.GuidanceMandatory)
