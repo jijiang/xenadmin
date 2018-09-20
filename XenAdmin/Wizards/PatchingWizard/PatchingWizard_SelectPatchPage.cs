@@ -455,13 +455,6 @@ namespace XenAdmin.Wizards.PatchingWizard
             set { fileNameTextBox.Text = value; }
         }
 
-        private void BrowseButton_Click(object sender, EventArgs e)
-        {
-            selectFromDiskRadioButton.Checked = true;
-            HelpersWizard.AddSuppPackFromDisk(this);
-            OnPageUpdated();
-        }
-
         public UpdateType SelectedUpdateType { get; set; }
 
         public Pool_patch SelectedExistingPatch { get; set; }
@@ -697,6 +690,15 @@ namespace XenAdmin.Wizards.PatchingWizard
         {
             dataGridViewPatches.Focus();
             Updates.CheckForUpdates(true);
+        }
+
+        private void BrowseButton_Click(object sender, EventArgs e)
+        {
+            selectFromDiskRadioButton.Checked = true;
+            var suppPack = HelpersWizard.GetSuppPackFromDisk(this);
+            if (!string.IsNullOrEmpty(suppPack))
+                FilePath = suppPack;
+            OnPageUpdated();
         }
 
         #endregion

@@ -93,7 +93,7 @@ namespace XenAdmin.Wizards.PatchingWizard
 
         public void AddFile(string path)
         {
-            HelpersWizard.AddFile(path, PatchingWizard_SelectPatchPage);
+            PatchingWizard_SelectPatchPage.FilePath = path;
         }
 
         public void SelectServers(List<Host> selectedServers)

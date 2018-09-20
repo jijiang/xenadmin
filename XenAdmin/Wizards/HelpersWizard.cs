@@ -30,18 +30,14 @@
  */
 
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.IO;
+using System.Runtime.Remoting.Channels;
 using System.Windows.Forms;
-using System.Xml;
-using DiscUtils.Iso9660;
 using XenAdmin.Actions;
-using XenAdmin.Alerts;
 using XenAdmin.Controls;
-using XenAdmin.Core;
 using XenAdmin.Dialogs;
-using XenAdmin.Wizards.PatchingWizard;
-using XenAdmin.Wizards.RollingUpgradeWizard;
 
 
 namespace XenAdmin.Wizards
@@ -50,67 +46,53 @@ namespace XenAdmin.Wizards
     {
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        public static void AddSuppPackFromDisk(XenTabPage page)
+        public static string GetSuppPackFromDisk(XenTabPage page)
         {
-            String oldDir = String.Empty;
+            string oldDir = string.Empty;
             try
             {
                 oldDir = Directory.GetCurrentDirectory();
-                using (OpenFileDialog dlg = new OpenFileDialog
+                using (var dlg = new OpenFileDialog
                 {
                     Multiselect = false,
                     ShowReadOnly = false,
                     Filter = string.Format(Messages.PATCHINGWIZARD_SELECTPATCHPAGE_UPDATESEXT, Branding.Update),
                     FilterIndex = 0,
                     CheckFileExists = true,
+                    CheckPathExists = true,
                     ShowHelp = false,
                     Title = Messages.PATCHINGWIZARD_SELECTPATCHPAGE_CHOOSE
                 })
                 {
-                    if (dlg.ShowDialog(page) == DialogResult.OK && dlg.CheckFileExists)
-                        AddFile(dlg.FileName, page);
+                    dlg.FileOk += dlg_FileOk;
+                    
+
+                    if (dlg.ShowDialog(page) == DialogResult.OK)
+                        return dlg.FileName;
                 }
             }
             finally
             {
                 Directory.SetCurrentDirectory(oldDir);
             }
+
+            return null;
         }
 
-        public static void AddFile(string fileName, XenTabPage page)
+        private static void dlg_FileOk(object sender, CancelEventArgs e)
         {
-            if (isValidFile(fileName))
-            {
-                var patchingWizardPage = page as PatchingWizard_SelectPatchPage;
-                if (patchingWizardPage != null)
-                    patchingWizardPage.FilePath = fileName;
-                else
+            var dlg = sender as OpenFileDialog;
+            if (dlg == null)
+                return;
+
+            if (!isValidFile(dlg.FileName))
+                using (var popup = new ThreeButtonDialog(new ThreeButtonDialog.Details(
+                    SystemIcons.Error, string.Format(Messages.UPDATES_WIZARD_NOTVALID_EXTENSION, Branding.Update), Messages.UPDATES)))
                 {
-                    var rpuWizardAutoPage = page as RollingUpgradeWizardInstallMethodPage;
-                    if (rpuWizardAutoPage != null)
-                        rpuWizardAutoPage.FilePath = fileName;
-                    else
-                    {
-                        var rpuWizardManualPage = page as RollingUpgradeReadyToUpgradePage;
-                        if (rpuWizardManualPage != null)
-                            rpuWizardManualPage.FilePath = fileName;
-                        else
-                        {
-                            log.ErrorFormat("Error adding an update or supp pack file from disk on page {0}", page.Text);
-                            throw new Exception("Exception of adding a disk file.");
-                        }
-                    }
+                    popup.ShowDialog();
+                    e.Cancel = true;
                 }
-            }
-            else
-            {
-                using (var dlg = new ThreeButtonDialog(new ThreeButtonDialog.Details(
-                        SystemIcons.Error, string.Format(Messages.UPDATES_WIZARD_NOTVALID_EXTENSION, Branding.Update), Messages.UPDATES)))
-                {
-                    dlg.ShowDialog(page);
-                }
-            }
-        }
+        }       
 
         public static void ParseSuppPackFile(string path, string unzippedPath, XenTabPage page, ref bool cancel, out string suppPackPath)
         {
@@ -179,14 +161,10 @@ namespace XenAdmin.Wizards
 
         public static bool isValidFile(string fileName)
         {
-            return !string.IsNullOrEmpty(fileName) && File.Exists(fileName) && (fileName.ToLowerInvariant().EndsWith(UpdateExtension.ToLowerInvariant())
-                || fileName.ToLowerInvariant().EndsWith(".zip")
-                || fileName.ToLowerInvariant().EndsWith(".iso")); //this iso is supplemental pack iso for XS, not branded
-        }
-
-        private static string UpdateExtension
-        {
-            get { return "." + Branding.Update; }
+            return !string.IsNullOrEmpty(fileName) && File.Exists(fileName) &&
+                   (fileName.ToLowerInvariant().EndsWith("." + Branding.Update.ToLowerInvariant())
+                    || fileName.ToLowerInvariant().EndsWith(".zip")
+                    || fileName.ToLowerInvariant().EndsWith(".iso")); //this iso is supplemental pack iso for XS, not branded
         }
     }
 }

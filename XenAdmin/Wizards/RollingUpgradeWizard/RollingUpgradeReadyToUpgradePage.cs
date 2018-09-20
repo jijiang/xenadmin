@@ -141,7 +141,7 @@ namespace XenAdmin.Wizards.RollingUpgradeWizard
 
         public IEnumerable<Host> SelectedMasters { private get; set; }
 
-        public string FilePath
+        private string FilePath
         {
             get { return fileNameTextBox.Text; }
             set { fileNameTextBox.Text = value; }
@@ -158,7 +158,9 @@ namespace XenAdmin.Wizards.RollingUpgradeWizard
         private void BrowseButton_Click(object sender, EventArgs e)
         {
             checkBoxInstallSuppPack.Checked = true;
-            HelpersWizard.AddSuppPackFromDisk(this);
+            var suppPack = HelpersWizard.GetSuppPackFromDisk(this);
+            if (!string.IsNullOrEmpty(suppPack))
+                FilePath = suppPack;
             OnPageUpdated();
         }
 
